@@ -44,7 +44,7 @@ async function main() {
 			"pause.".concat(username),
 			PauseKey,
 			{transient: true},
-			handlerPause
+			handlerPause(gameState)
 	)
 
 	while (true) {
