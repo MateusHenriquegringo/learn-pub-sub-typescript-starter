@@ -21,10 +21,6 @@ async function main() {
   while (true) {
     const words = await getInput();
 
-    if (words.length === 0 || words[0] === "") {
-      continue;
-    }
-
     const command = words[0];
 
     if (command === ServerCommand.Pause) {
