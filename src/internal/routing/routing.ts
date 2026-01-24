@@ -1,6 +1,7 @@
 export const ArmyMovesPrefix = "army_moves";
 export const WarRecognitionsPrefix = "war";
 export const PauseKey = "pause";
+export const GameLogKey = "gamelog.*";
 export const GameLogSlug = "game_logs";
 
 export const ExchangePerilDirect = "peril_direct";

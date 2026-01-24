@@ -1,59 +1,67 @@
 import amqp from "amqplib";
-import { publishJSON } from "../internal/pubsub/shared.js";
-import { ExchangePerilDirect, PauseKey } from "../internal/routing/routing.js";
-import type { PlayingState } from "../internal/gamelogic/gamestate.js";
-import { printServerHelp, getInput } from "../internal/gamelogic/gamelogic.js";
+import {declareAndBind, publishJSON} from "../internal/pubsub/shared.js";
+import {ExchangePerilDirect, ExchangePerilTopic, GameLogKey, GameLogSlug, PauseKey} from "../internal/routing/routing.js";
+import type {PlayingState} from "../internal/gamelogic/gamestate.js";
+import {printServerHelp, getInput} from "../internal/gamelogic/gamelogic.js";
 
 enum ServerCommand {
-  Pause = "pause",
-  Resume = "resume",
-  Quit = "quit",
+	Pause = "pause",
+	Resume = "resume",
+	Quit = "quit",
 }
 
 async function main() {
-  console.log("Starting Peril server...");
+	console.log("Starting Peril server...");
 
-  let conn = await amqp.connect("amqp://guest:guest@localhost:5672/");
-  let channel = await conn.createConfirmChannel();
+	let conn = await amqp.connect("amqp://guest:guest@localhost:5672/");
+	let channel = await conn.createConfirmChannel();
 
-  printServerHelp();
+	await declareAndBind(
+			conn,
+			ExchangePerilTopic,
+			GameLogSlug,
+			GameLogKey,
+			{durable: true, transient: false}
+	)
 
-  while (true) {
-    const words = await getInput();
+	printServerHelp();
 
-    const command = words[0];
+	while (true) {
+		const words = await getInput();
 
-    if (command === ServerCommand.Pause) {
-      console.log("Sending pause message...");
-      await publishJSON(
-        channel,
-        ExchangePerilDirect,
-        PauseKey,
-        { isPaused: true } as PlayingState
-      );
-    } else if (command === ServerCommand.Resume) {
-      console.log("Sending resume message...");
-      await publishJSON(
-        channel,
-        ExchangePerilDirect,
-        PauseKey,
-        { isPaused: false } as PlayingState
-      );
-    } else if (command === ServerCommand.Quit) {
-      console.log("Exiting...");
-      break;
-    } else {
-      console.log(`I don't understand the command: ${command}`);
-    }
-  }
+		const command = words[0];
 
-  await channel.close();
-  await conn.close();
+		if (command === ServerCommand.Pause) {
+			console.log("Sending pause message...");
+			await publishJSON(
+					channel,
+					ExchangePerilDirect,
+					PauseKey,
+					{isPaused: true} as PlayingState
+			);
+		} else if (command === ServerCommand.Resume) {
+			console.log("Sending resume message...");
+			await publishJSON(
+					channel,
+					ExchangePerilDirect,
+					PauseKey,
+					{isPaused: false} as PlayingState
+			);
+		} else if (command === ServerCommand.Quit) {
+			console.log("Exiting...");
+			break;
+		} else {
+			console.log(`I don't understand the command: ${command}`);
+		}
+	}
+
+	await channel.close();
+	await conn.close();
 }
 
 main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
+	console.error("Fatal error:", err);
+	process.exit(1);
 }).then(() => {
-  console.log("Peril server exited successfully.");
+	console.log("Peril server exited successfully.");
 });
