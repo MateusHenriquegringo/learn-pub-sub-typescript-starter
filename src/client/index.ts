@@ -6,11 +6,12 @@ import {
 	commandStatus,
 	printQuit,
 } from "../internal/gamelogic/gamelogic.js";
-import {declareAndBind} from "../internal/pubsub/shared.js";
+import {declareAndBind, subscribeJSON} from "../internal/pubsub/shared.js";
 import {ExchangePerilDirect, PauseKey} from "../internal/routing/routing.js";
 import {GameState} from "../internal/gamelogic/gamestate.js";
 import {commandSpawn} from "../internal/gamelogic/spawn.js";
 import {commandMove} from "../internal/gamelogic/move.js";
+import {handlerPause} from "./handlers.js";
 
 enum ClientCommand {
 	Spawn = "spawn",
@@ -25,7 +26,6 @@ async function main() {
 	console.log("Starting Peril client...");
 
 	let conn = await amqp.connect("amqp://guest:guest@localhost:5672/");
-	let channel = await conn.createConfirmChannel();
 
 	const username: string = await clientWelcome();
 
@@ -38,6 +38,14 @@ async function main() {
 	);
 
 	const gameState = new GameState(username);
+	await subscribeJSON(
+			conn,
+			ExchangePerilDirect,
+			"pause.".concat(username),
+			PauseKey,
+			{transient: true},
+			handlerPause
+	)
 
 	while (true) {
 		const words = await getInput();
@@ -67,8 +75,6 @@ async function main() {
 			}
 		}
 	}
-
-	await channel.close();
 	await conn.close();
 }
 
