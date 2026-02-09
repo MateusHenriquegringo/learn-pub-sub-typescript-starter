@@ -6,12 +6,13 @@ import {
 	commandStatus,
 	printQuit,
 } from "../internal/gamelogic/gamelogic.js";
-import {declareAndBind, subscribeJSON} from "../internal/pubsub/shared.js";
-import {ExchangePerilDirect, PauseKey} from "../internal/routing/routing.js";
+import {declareAndBind, publishJSON, subscribeJSON} from "../internal/pubsub/shared.js";
+import {ArmyMovesPrefix, ExchangePerilDirect, ExchangePerilTopic, PauseKey} from "../internal/routing/routing.js";
 import {GameState} from "../internal/gamelogic/gamestate.js";
 import {commandSpawn} from "../internal/gamelogic/spawn.js";
-import {commandMove} from "../internal/gamelogic/move.js";
+import {commandMove, handleMove} from "../internal/gamelogic/move.js";
 import {handlerPause} from "./handlers.js";
+import type {ArmyMove} from "../internal/gamelogic/gamedata.js";
 
 enum ClientCommand {
 	Spawn = "spawn",
@@ -29,14 +30,6 @@ async function main() {
 
 	const username: string = await clientWelcome();
 
-	await declareAndBind(
-			conn,
-			ExchangePerilDirect,
-			"pause.".concat(username),
-			PauseKey,
-			{transient: true}
-	);
-
 	const gameState = new GameState(username);
 	await subscribeJSON(
 			conn,
@@ -45,6 +38,17 @@ async function main() {
 			PauseKey,
 			{transient: true},
 			handlerPause(gameState)
+	)
+
+	await subscribeJSON(
+			conn,
+			ExchangePerilTopic,
+			ArmyMovesPrefix.concat('.' + username),
+			ArmyMovesPrefix,
+			{transient: false, durable: false},
+			(move: ArmyMove) => {
+				handleMove(gameState, move);
+			}
 	)
 
 	while (true) {
@@ -56,7 +60,15 @@ async function main() {
 			if (command === ClientCommand.Spawn) {
 				commandSpawn(gameState, words);
 			} else if (command === ClientCommand.Move) {
-				commandMove(gameState, words);
+				const move = commandMove(gameState, words);
+
+				await publishJSON(
+						await conn.createConfirmChannel(),
+						ExchangePerilTopic,
+						ArmyMovesPrefix.concat('.' + username),
+						move
+				)
+				console.log('Move sent to server!');
 			} else if (command === ClientCommand.Status) {
 				await commandStatus(gameState);
 			} else if (command === ClientCommand.Help) {
