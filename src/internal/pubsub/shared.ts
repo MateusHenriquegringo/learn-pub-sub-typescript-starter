@@ -32,7 +32,10 @@ export async function declareAndBind(
 	const assertQueue: Replies.AssertQueue = await channel.assertQueue(queueName, {
 		durable: queueType.durable,
 		autoDelete: queueType.transient,
-		exclusive: queueType.transient
+		exclusive: queueType.transient,
+		arguments: {
+			'x-dead-letter-exchange': 'peril_dlx'
+		}
 	})
 
 	await channel.bindQueue(queueName, exchange, key)
