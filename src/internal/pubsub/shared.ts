@@ -1,6 +1,12 @@
 import type { ConfirmChannel, Channel, ChannelModel, Replies } from "amqplib";
 export type SimpleQueueType = { durable?: boolean, transient: boolean };
 
+export enum AckType {
+	Ack = "ack",
+	NackRequeue = "nackRequeue",
+	NackDiscard = "nackDiscard",
+}
+
 export function publishJSON<T>(ch: ConfirmChannel, exchange: string, routingKey: string, value: T): Promise<void> {
 
 	ch.publish(
@@ -42,7 +48,7 @@ export async function subscribeJSON<T>(
 		queueName: string,
 		key: string,
 		queueType: SimpleQueueType,
-		handler: (data: T) => void,
+		handler: (data: T) => AckType,
 ): Promise<void> {
 
 	let [channel, queue] = await declareAndBind(conn, exchange, queueName, key, queueType)
@@ -51,8 +57,25 @@ export async function subscribeJSON<T>(
 		if (!msg) return;
 
 		const parsed = JSON.parse(msg.content.toString()) as T;
-		handler(parsed)
+		const ackType: AckType = handler(parsed)
 
-		channel.ack(msg)
+		switch (ackType) {
+			case AckType.Ack:
+				channel.ack(msg);
+				console.info(`Message acknowledged: ${msg.content.toString()}`);
+				break;
+			case AckType.NackRequeue:
+				channel.nack(msg, false, true);
+				console.info('Message rejected and requeued: ' + msg.content.toString());
+				break;
+			case AckType.NackDiscard:
+				channel.nack(msg, false, false);
+				console.info('Message rejected and discarded: ' + msg.content.toString());
+				break;
+			default:
+			    channel.ack(msg)
+				console.info('Unknown AckType, defaulting to ack: ' + msg.content.toString());
+				break;
+		}
 	})
 };
